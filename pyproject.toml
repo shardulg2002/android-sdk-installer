@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "android-sdk-installer"
+version = "1.0.0"
+description = "CLI tool for Android SDK installation and environment setup"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "GPL-3.0-or-later"
+classifiers = [
+    "Programming Language :: Python :: 3"
+]
+authors = [
+    {name = "Andrey4ik21pro1"}
+]
+dependencies = [
+    "click",
+    "requests",
+    "tqdm",
+]
+
+[project.urls]
+Homepage = "https://github.com/andrey4ik21pro1/android-sdk-installer"
+Repository = "https://github.com/andrey4ik21pro1/android-sdk-installer"
+Issues = "https://github.com/andrey4ik21pro1/android-sdk-installer/issues"
+
+[project.scripts]
+android-sdk-installer = "android_sdk_installer.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

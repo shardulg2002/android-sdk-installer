@@ -1,0 +1,183 @@
+name: Test
+on:
+  workflow_dispatch:
+
+jobs:
+  test-run-script:
+    name: Test (run script) on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Remove Pre-installed Android SDK (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          if [ -n "$ANDROID_HOME" ]; then
+            NEW_PATH=$(echo "$PATH" | tr ':' '\n' | grep -v "$ANDROID_HOME" | tr '\n' ':' | sed 's/:$//')
+            echo "PATH=$NEW_PATH" >> $GITHUB_ENV
+            if [ -d "$ANDROID_HOME" ]; then
+              sudo rm -rf "$ANDROID_HOME"
+            fi
+            echo "ANDROID_HOME=" >> $GITHUB_ENV
+          fi
+
+      - name: Remove Pre-installed Android SDK (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if ($env:ANDROID_HOME) {
+            $newPath = ($env:Path -split ';' | Where-Object { $_ -notlike "*$env:ANDROID_HOME*" }) -join ';'
+            echo "PATH=$newPath" >> $env:GITHUB_ENV
+            if (Test-Path -Path $env:ANDROID_HOME) {
+              Remove-Item -Recurse -Force -Path $env:ANDROID_HOME
+            }
+            echo "ANDROID_HOME=" >> $env:GITHUB_ENV
+          }
+
+      # --- Method 1: Run without installation ---
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run script (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          ./run.sh --path sdk_1
+
+      - name: Run script (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          .\run.ps1 --path sdk_1
+
+      - name: Verify (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          CONFIG_FILE=$([ "$RUNNER_OS" == "macOS" ] && echo "$HOME/.zshrc" || echo "$HOME/.bashrc")
+          if [ -f "$CONFIG_FILE" ]; then
+            NEW_HOME=$(grep "export ANDROID_HOME=" "$CONFIG_FILE" | cut -d'"' -f2 | tail -n 1)
+            if [ -n "$NEW_HOME" ]; then
+              echo "ANDROID_HOME=$NEW_HOME" >> $GITHUB_ENV
+              export PATH="$PATH:$NEW_HOME/cmdline-tools/latest/bin:$NEW_HOME/platform-tools"
+              echo "$NEW_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+            fi
+          fi
+          sdkmanager --list | grep "cmdline-tools"
+
+      - name: Verify (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:ANDROID_HOME = [Environment]::GetEnvironmentVariable('ANDROID_HOME', 'User')
+          $mPath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          $uPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+
+          $env:Path = "$mPath;$uPath"
+          sdkmanager --list | Select-String "cmdline-tools"
+
+  test-install-package:
+    name: Test (install package) on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Remove Pre-installed Android SDK (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          if [ -n "$ANDROID_HOME" ]; then
+            NEW_PATH=$(echo "$PATH" | tr ':' '\n' | grep -v "$ANDROID_HOME" | tr '\n' ':' | sed 's/:$//')
+            echo "PATH=$NEW_PATH" >> $GITHUB_ENV
+            if [ -d "$ANDROID_HOME" ]; then
+              sudo rm -rf "$ANDROID_HOME"
+            fi
+            echo "ANDROID_HOME=" >> $GITHUB_ENV
+          fi
+
+      - name: Remove Pre-installed Android SDK (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if ($env:ANDROID_HOME) {
+            $newPath = ($env:Path -split ';' | Where-Object { $_ -notlike "*$env:ANDROID_HOME*" }) -join ';'
+            echo "PATH=$newPath" >> $env:GITHUB_ENV
+            if (Test-Path -Path $env:ANDROID_HOME) {
+              Remove-Item -Recurse -Force -Path $env:ANDROID_HOME
+            }
+            echo "ANDROID_HOME=" >> $env:GITHUB_ENV
+          }
+
+      # --- Method 2: Install as a system command ---
+      - name: Install package
+        run: pip install .
+
+      - name: Run (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          android-sdk-installer --path sdk_2
+
+      - name: Run (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          android-sdk-installer --path sdk_2
+
+      - name: Verify (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          CONFIG_FILE=$([ "$RUNNER_OS" == "macOS" ] && echo "$HOME/.zshrc" || echo "$HOME/.bashrc")
+          if [ -f "$CONFIG_FILE" ]; then
+            NEW_HOME=$(grep "export ANDROID_HOME=" "$CONFIG_FILE" | cut -d'"' -f2 | tail -n 1)
+            if [ -n "$NEW_HOME" ]; then
+              echo "ANDROID_HOME=$NEW_HOME" >> $GITHUB_ENV
+              export PATH="$PATH:$NEW_HOME/cmdline-tools/latest/bin:$NEW_HOME/platform-tools"
+              echo "$NEW_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+            fi
+          fi
+          sdkmanager --list | grep "cmdline-tools"
+
+      - name: Verify (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:ANDROID_HOME = [Environment]::GetEnvironmentVariable('ANDROID_HOME', 'User')
+          $mPath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          $uPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+
+          $env:Path = "$mPath;$uPath"
+          sdkmanager --list | Select-String "cmdline-tools"

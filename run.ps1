@@ -1,0 +1,1 @@
+python -m src.android_sdk_installer @args
